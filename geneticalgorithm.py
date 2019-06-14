@@ -1,21 +1,27 @@
 import random
 import datetime
-import multiprocessing as mp
+from multiprocessing import Process,Queue
 import matplotlib.pyplot as plt
 
-def ga(func,restrictions,variables_matrix,workers = 100,tipo='maximize',qntd_repeticoes=10000,mutacao = 10,len_populacao=4):
-	antes = datetime.datetime.now()
-	trabalhadores = [mp.Process(target = geneticalgorithm,args=(func,restrictions,variables_matrix,tipo,len_populacao,mutacao,qntd_repeticoes)) for i in range(workers)]
-	for p in trabalhadores: p.start()
-	for p in trabalhadores: p.join()
-	depoisthread = datetime.datetime.now()
-	lista = []
-	for i in range(workers):
-		lista.append(geneticalgorithm(func,restrictions,variables_matrix,tipo=tipo,qntd_repeticoes = qntd_repeticoes,mutacao = mutacao))
-	depoisserie = datetime.datetime.now()
-	return((depoisserie-depoisthread).total_seconds(),(depoisthread-antes).total_seconds())
 
-def geneticalgorithm(func,restrictions,variables_matrix,tipo='maximize',len_populacao = 4,mutacao = 10,qntd_repeticoes = 10000):
+def ga(func,restrictions,variables_matrix,workers = 100,tipo='maximize',qntd_repeticoes=10000,mutacao = 10,len_populacao=4):
+	queue = Queue()
+	trabalhadores = [Process(target = geneticalgorithm,args=(func,restrictions,variables_matrix,queue,tipo,len_populacao,mutacao,qntd_repeticoes)) for i in range(workers)]
+	for p in trabalhadores: 
+		p.start()
+	resultdict = []
+	for p in trabalhadores: p.join()
+	lista = []
+	lista = [queue.get(i) for i in range(workers)]
+	best = lista[0]
+	for i in range(1,workers):
+		if lista[i]['valor'] > best['valor'] and (tipo == 'max' or tipo == 'maximize'):
+			best = lista[i]
+		elif lista[i]['valor'] < best['valor'] and (tipo == 'min' or tipo == 'minimize'):
+			best = lista[i]
+	return best
+
+def geneticalgorithm(func,restrictions,variables_matrix,queue=None,tipo='maximize',len_populacao = 4,mutacao = 10,qntd_repeticoes = 10000):
 	populacao = [] 
 	#Cria a população inicial
 	while len(populacao) < len_populacao:
@@ -87,6 +93,10 @@ def geneticalgorithm(func,restrictions,variables_matrix,tipo='maximize',len_popu
 			for j in range(len(cross)):
 				if genes[i]['nome'] == cross[j]['nome']:
 					genes[i] = cross[j]
+	try:
+		queue.put(melhor)
+	except:
+		pass
 	return melhor
 
 def mutation(genes,variables_matrix):
@@ -173,15 +183,4 @@ def restriction2(vector):
 	return vector[2] < 7
 
 
-if __name__ == '__main__':
-	mult = []
-	normal = []
-	for i in range(10):
-		(a,b) = ga(main,[restriction1,restriction2],[[1,2,3,4],[5,6,7],[4,1,2]],tipo='max',len_populacao=4,workers=i*10)
-		mult.append(b)
-		normal.append(a)
-	plt.plot(normal,label='Série')
-	plt.plot(mult,label = 'MultiProcessamento')
-	plt.ylabel('some numbers')
-	plt.show()
 
