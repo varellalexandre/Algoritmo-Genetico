@@ -4,9 +4,9 @@ from multiprocessing import Process,Queue
 import matplotlib.pyplot as plt
 
 
-def ga(func,restrictions,variables_matrix,workers = 100,tipo='maximize',qntd_repeticoes=10000,mutacao = 10,len_populacao=4):
+def ga(func,variables_matrix,restrictions=[],workers = 4,tipo='maximize',qntd_repeticoes=1000,mutacao = 5,len_populacao=4):
 	queue = Queue()
-	trabalhadores = [Process(target = geneticalgorithm,args=(func,restrictions,variables_matrix,queue,tipo,len_populacao,mutacao,qntd_repeticoes)) for i in range(workers)]
+	trabalhadores = [Process(target = geneticalgorithm,args=(func,variables_matrix,restrictions,queue,tipo,len_populacao,mutacao,qntd_repeticoes)) for i in range(workers)]
 	for p in trabalhadores: 
 		p.start()
 	resultdict = []
@@ -21,18 +21,16 @@ def ga(func,restrictions,variables_matrix,workers = 100,tipo='maximize',qntd_rep
 			best = lista[i]
 	return best
 
-def geneticalgorithm(func,restrictions,variables_matrix,queue=None,tipo='maximize',len_populacao = 4,mutacao = 10,qntd_repeticoes = 10000):
+def geneticalgorithm(func,variables_matrix,restrictions = [],queue=None,tipo='maximize',len_populacao = 4,mutacao = 5,qntd_repeticoes = 1000):
 	populacao = [] 
 	#Cria a população inicial
 	while len(populacao) < len_populacao:
-		try:
-			tryout = [variables_matrix[i][random.randint(0,len(variables_matrix[i])*10000)%len(variables_matrix[i])] for i in range(len(variables_matrix))]
-			for j in restrictions:
-				assert j(tryout)
-			#verifica se as restrições permitem a solução gerada
-			populacao.append(tryout)
-		except:
-			pass
+		#try:
+		tryout = [variables_matrix[i][random.randint(0,len(variables_matrix[i])*10000)%len(variables_matrix[i])] for i in range(len(variables_matrix))]
+		for j in restrictions:
+			assert j(tryout)
+		#verifica se as restrições permitem a solução gerada
+		populacao.append(tryout)
 	genes = []
 	#Popula uma lista de dicionários como população
 	for i in range(len(populacao)):
@@ -62,15 +60,15 @@ def geneticalgorithm(func,restrictions,variables_matrix,queue=None,tipo='maximiz
 		#realiza o crossover, gerando os filhos da população
 		correct_cross = False
 		while correct_cross == False:
-			try:
-				cross = crossover(parents)
-				for i in cross:
-					for j in restrictions:
-						assert j(i['caracteristicas'])
-					i['valor'] = func(i['caracteristicas'])
-				correct_cross = True
-			except:
-				correct_cross = False
+			#try:
+			cross = crossover(parents)
+			for i in cross:
+				for j in restrictions:
+					assert j(i['caracteristicas'])
+				i['valor'] = func(i['caracteristicas'])
+			correct_cross = True
+	#		except:
+	#			correct_cross = False
 
 		#verifica se ocorre mutação
 		correct_cross = True
@@ -78,15 +76,15 @@ def geneticalgorithm(func,restrictions,variables_matrix,queue=None,tipo='maximiz
 		if mutation_rate <= mutacao:
 			correct_cross = False
 		while correct_cross == False:
-			try:
-				cross = mutation(cross,variables_matrix)
-				for i in cross:
-					for j in restrictions:
-						assert j(i['caracteristicas'])
-					i['valor'] = func(i['caracteristicas'])
-				correct_cross = True
-			except:
-				correct_cross = False
+	#		try:
+			cross = mutation(cross,variables_matrix)
+			for i in cross:
+				for j in restrictions:
+					assert j(i['caracteristicas'])
+				i['valor'] = func(i['caracteristicas'])
+			correct_cross = True
+#			except:
+#				correct_cross = False
 
 		#realoca os filhos no lugar dos pais
 		for i in range(len(genes)):
@@ -132,8 +130,8 @@ def selection(genes):
 	for i in range(int(len(genes)/2),len(genes)):
 		worse.append(genes[i])
 		worse_fo = worse_fo + genes[i]['valor']
-	parentA = random.randint(0,best_fo*10000)%best_fo
-	parentB = random.randint(0,worse_fo*10000)%worse_fo
+	parentA = random.randint(0,int(best_fo*10000))%best_fo
+	parentB = random.randint(0,int(worse_fo*10000))%worse_fo
 	#cria valores randomicos baseado na qualidade da função objetivo dos melhores e piores
 	somaA = 0
 	somaB = 0
@@ -167,20 +165,7 @@ def sortpopulation(genes,tipo):
 				if aux[i]['valor'] < aux[j]['valor']:
 					aux[i],aux[j] = aux[j],aux[i]
 		return aux
-#função objetivo
-def main(vector):
-	x = 0
-	for i in vector:
-		x = x + i
-	return x
 
-#restrição 1
-def restriction1(vector):
-	return vector[0] >= 2
-
-#restrição 2
-def restriction2(vector):
-	return vector[2] < 7
 
 
 
