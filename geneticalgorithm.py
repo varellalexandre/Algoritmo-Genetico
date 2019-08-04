@@ -1,36 +1,19 @@
 import random
 import datetime
-from multiprocessing import Process,Queue
 import matplotlib.pyplot as plt
 
-
-def ga(func,variables_matrix,restrictions=[],workers = 4,tipo='maximize',qntd_repeticoes=1000,mutacao = 5,len_populacao=4):
-	queue = Queue()
-	trabalhadores = [Process(target = geneticalgorithm,args=(func,variables_matrix,restrictions,queue,tipo,len_populacao,mutacao,qntd_repeticoes)) for i in range(workers)]
-	for p in trabalhadores: 
-		p.start()
-	resultdict = []
-	for p in trabalhadores: p.join()
-	lista = []
-	lista = [queue.get(i) for i in range(workers)]
-	best = lista[0]
-	for i in range(1,workers):
-		if lista[i]['valor'] > best['valor'] and (tipo == 'max' or tipo == 'maximize'):
-			best = lista[i]
-		elif lista[i]['valor'] < best['valor'] and (tipo == 'min' or tipo == 'minimize'):
-			best = lista[i]
-	return best
-
-def geneticalgorithm(func,variables_matrix,restrictions = [],queue=None,tipo='maximize',len_populacao = 4,mutacao = 5,qntd_repeticoes = 1000):
+def geneticalgorithm(func,variables_matrix,restrictions = [],tipo='maximize',permutacao = 50,len_populacao = 4,mutacao = 5,qntd_repeticoes = 1000):
 	populacao = [] 
 	#Cria a população inicial
 	while len(populacao) < len_populacao:
-		#try:
-		tryout = [variables_matrix[i][random.randint(0,len(variables_matrix[i])*10000)%len(variables_matrix[i])] for i in range(len(variables_matrix))]
-		for j in restrictions:
-			assert j(tryout)
+		try:
+			tryout = [variables_matrix[i][random.randint(0,len(variables_matrix[i])*10000)%len(variables_matrix[i])] for i in range(len(variables_matrix))]
+			for j in restrictions:
+				assert j(tryout)
+			populacao.append(tryout)
+		except:
+			pass
 		#verifica se as restrições permitem a solução gerada
-		populacao.append(tryout)
 	genes = []
 	#Popula uma lista de dicionários como população
 	for i in range(len(populacao)):
@@ -55,20 +38,20 @@ def geneticalgorithm(func,variables_matrix,restrictions = [],queue=None,tipo='ma
 			#print(melhor)
 			#define o melhor valor
 		#Efetua a seleção natural, um elemento dos 50% melhores e outro dos 50% piores
-		parents = selection(genes)
+		parents = selection(genes,permutacao)
 
 		#realiza o crossover, gerando os filhos da população
 		correct_cross = False
 		while correct_cross == False:
-			#try:
-			cross = crossover(parents)
-			for i in cross:
-				for j in restrictions:
-					assert j(i['caracteristicas'])
-				i['valor'] = func(i['caracteristicas'])
-			correct_cross = True
-	#		except:
-	#			correct_cross = False
+			try:
+				cross = crossover(parents)
+				for i in cross:
+					for j in restrictions:
+						assert j(i['caracteristicas'])
+					i['valor'] = func(i['caracteristicas'])
+				correct_cross = True
+			except:
+				correct_cross = False
 
 		#verifica se ocorre mutação
 		correct_cross = True
@@ -76,25 +59,21 @@ def geneticalgorithm(func,variables_matrix,restrictions = [],queue=None,tipo='ma
 		if mutation_rate <= mutacao:
 			correct_cross = False
 		while correct_cross == False:
-	#		try:
-			cross = mutation(cross,variables_matrix)
-			for i in cross:
-				for j in restrictions:
-					assert j(i['caracteristicas'])
-				i['valor'] = func(i['caracteristicas'])
-			correct_cross = True
-#			except:
-#				correct_cross = False
+			try:
+				cross = mutation(cross,variables_matrix)
+				for i in cross:
+					for j in restrictions:
+						assert j(i['caracteristicas'])
+					i['valor'] = func(i['caracteristicas'])
+				correct_cross = True
+			except:
+				correct_cross = False
 
 		#realoca os filhos no lugar dos pais
 		for i in range(len(genes)):
 			for j in range(len(cross)):
 				if genes[i]['nome'] == cross[j]['nome']:
 					genes[i] = cross[j]
-	try:
-		queue.put(melhor)
-	except:
-		pass
 	return melhor
 
 def mutation(genes,variables_matrix):
@@ -113,11 +92,12 @@ def crossover(genes):
 	len_caracteristicas = len(aux[0]['caracteristicas'])
 	#escolhe o gene para ser trocado randomicamente
 	posicao = random.randint(0,len_caracteristicas*10000)%len_caracteristicas
-	#troca dos genes
-	aux[1]['caracteristicas'][posicao],aux[0]['caracteristicas'][posicao] = aux[0]['caracteristicas'][posicao],aux[1]['caracteristicas'][posicao]
+	for i in range(int(len(aux)/2)):
+		#troca dos genes
+		aux[i]['caracteristicas'][posicao],aux[int((i+(len(aux)/2))-1)]['caracteristicas'][posicao] = aux[int((i+(len(aux)/2))-1)]['caracteristicas'][posicao],aux[i]['caracteristicas'][posicao]
 	return aux
 
-def selection(genes):
+def selection(genes,permutacao):
 	best = []
 	best_fo = 0
 	worse = []
@@ -130,24 +110,26 @@ def selection(genes):
 	for i in range(int(len(genes)/2),len(genes)):
 		worse.append(genes[i])
 		worse_fo = worse_fo + genes[i]['valor']
-	parentA = random.randint(0,int(best_fo*10000))%best_fo
-	parentB = random.randint(0,int(worse_fo*10000))%worse_fo
+	parentB = []
+	parentW = []
+	aux = int(len(best)*permutacao/100)
+	for i in range(aux):
+		parentB.append(random.randint(0,int(best_fo*10000))%oneifzero(best_fo))
+		parentW.append(random.randint(0,int(worse_fo*10000))%oneifzero(worse_fo))
 	#cria valores randomicos baseado na qualidade da função objetivo dos melhores e piores
 	somaA = 0
 	somaB = 0
 	parents = []
-	#escolhe o valor para os pais
-	for i in range(len(best)-1,-1,-1):
-		if somaA + best[i]['valor'] >= parentA:
-			parents.append(best[i])
-			break
-		somaA = somaA + best[i]['valor']
-	for i in range(len(worse)-1,-1,-1):
-		if somaB + worse[i]['valor'] >= parentB:
-			parents.append(worse[i])
-			break
-		somaB = somaB + worse[i]['valor']
+	for i in parentB:
+		parents.append(position(best,i))
+	for i in parentW:
+		parents.append(position(worse,i))
 	return parents
+
+def oneifzero(val):
+	if val == 0:
+		return 1
+	return val
 
 def sortpopulation(genes,tipo):
 	#ordena a população baseada no valor
@@ -165,6 +147,32 @@ def sortpopulation(genes,tipo):
 				if aux[i]['valor'] < aux[j]['valor']:
 					aux[i],aux[j] = aux[j],aux[i]
 		return aux
+
+#Retorna a posição do elemento baseado no valor gerado para a soma da função objetivo
+def position(genes,val):
+	soma_genes = 0
+	for i in genes:
+		soma_genes = soma_genes + i['valor']
+		if val <= soma_genes:
+			return dict(i)
+
+#função objetivo
+def main(vector):
+	return 6*vector[0]+5*vector[1]
+
+#restrição 1
+def restriction1(vector):
+	return vector[0] + vector[1] <= 5
+
+#restrição 2
+def restriction2(vector):
+	return 3*vector[0] + 2*vector[1] <= 12
+
+
+if __name__ == '__main__':
+	vect = [[i for i in range(100)] for j in range(2)]
+	a = geneticalgorithm(main,vect,[restriction1,restriction2],tipo='max',len_populacao=50)
+	print(a)
 
 
 
